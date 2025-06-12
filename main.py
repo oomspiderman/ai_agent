@@ -4,6 +4,8 @@ from google import genai
 import sys
 from google.genai import types
 
+verbose = False
+
 # sys.argv
 # The list of command line arguments passed to a Python script. 
 # argv[0] is the script name (it is operating system dependent whether this is a full pathname or not). 
@@ -14,11 +16,14 @@ from google.genai import types
 # Note On Unix, command line arguments are passed by bytes from OS. Python decodes them with filesystem encoding and 
 # “surrogateescape” error handler. When you need original bytes, you can get it by [os.fsencode(arg) for arg in sys.argv].
 
+if len(sys.argv) > 2:
+    if sys.argv[2] == "--verbose":
+        verbose = True
+
 if len(sys.argv) < 2:
     print("Error: prompt is required.")
     sys.exit(1)
 else:
-    print(f"Found the prompt: {sys.argv[1]}")
     user_prompt = sys.argv[1]
 
 messages = [
@@ -33,5 +38,7 @@ response = client.models.generate_content(
     model='gemini-2.0-flash-001', contents=messages
 )
 print(response.text)
-print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+if verbose: 
+    print(f"User prompt: {user_prompt}")    
+    print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+    print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
