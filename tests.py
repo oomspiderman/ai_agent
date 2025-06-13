@@ -1,0 +1,27 @@
+from functions.get_file_content import get_file_content
+
+# print("==========================================")
+# print(get_file_content("calculator", "lorem.txt"))
+# print("==========================================")
+
+print("==========================================")
+print(get_file_content("calculator", "main.py"))
+print("==========================================")
+print(get_file_content("calculator", "pkg/calculator.py"))
+print("==========================================")
+print(get_file_content("calculator", "/bin/cat"))
+print("==========================================")      
+
+# print("==========================================")
+# print(get_files_info("calculator", "."))
+# print("==========================================")
+# print(get_files_info("calculator", "pkg"))
+# print("==========================================")
+# print(get_files_info("calculator", "/bin"))
+# print("==========================================")
+# print(get_files_info("calculator", "../"))
+# print("==========================================")
+# print(get_files_info("calculator", "calculator"))
+# print("==========================================")
+# print(get_files_info("calculator", "calculator/pkg"))
+# print("==========================================")
