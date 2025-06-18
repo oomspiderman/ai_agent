@@ -3,6 +3,13 @@ from dotenv import load_dotenv
 from google import genai
 import sys
 from google.genai import types
+from functions.call_function import available_functions
+from functions.call_function import call_function
+
+from functions.get_files_info import schema_get_files_info
+from functions.get_file_content import schema_get_file_content
+from functions.run_python_file import schema_run_python_file
+from functions.write_file_content import schema_write_file
 
 verbose = True
 
@@ -49,66 +56,6 @@ All paths you provide should be relative to the working directory. You do not ne
 
 model_name = 'gemini-2.0-flash-001'
 
-schema_get_files_info = types.FunctionDeclaration(
-    name="get_files_info",
-    description="Lists files in the specified directory along with their sizes, constrained to the working directory.",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "directory": types.Schema(
-                type=types.Type.STRING,
-                description="The directory to list files from, relative to the working directory. If not provided, lists files in the working directory itself.",
-            ),
-        },
-    ),
-)
-
-schema_get_file_content = types.FunctionDeclaration(
-    name="get_file_content",
-    description="Read file contents",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "file_path": types.Schema(
-                type=types.Type.STRING,
-                description="The file of which the contents is to be inspected",
-            ),
-        },
-    ),
-)
-    
-schema_run_python_file = types.FunctionDeclaration(
-    name="run_python_file",
-    description="Execute Python files with optional arguments",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "file_path": types.Schema(
-                type=types.Type.STRING,
-                description="The file to be executed",
-            ),
-        },
-    ),
-)
-    
-schema_write_file = types.FunctionDeclaration(
-    name="write_file",
-    description="Write or overwrite files",
-    parameters=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "file_path": types.Schema(
-                type=types.Type.STRING,
-                description="The file to be written or overwritten",
-            ),
-            "content": types.Schema(
-                type=types.Type.STRING,
-                description="Content to be written to the file",
-            ),
-        },
-    ),
-)
-
 available_functions = types.Tool(
     function_declarations=[
         schema_get_files_info,
@@ -130,10 +77,15 @@ if verbose:
     print(f"User prompt: {user_prompt}")    
     print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
     print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-
+    
 if response.function_calls is None:
     print(f'{response.text}')
 else:
     for function_call_part in response.function_calls:
-        print(f"Calling function: {function_call_part.name}({function_call_part.args})")
+        function_call_result = call_function(function_call_part, verbose)
+        result = function_call_result.parts[0].function_response.response
+        if result is None:
+            raise ValueError("Error: function call result is None")
+        print(f"-> {result}")  # Always print the result, not just in verbose mode
+
         
