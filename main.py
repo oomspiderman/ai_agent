@@ -1,91 +1,70 @@
-import os
-from dotenv import load_dotenv
-from google import genai
 import sys
+import os
+from google import genai
 from google.genai import types
-from functions.call_function import available_functions
-from functions.call_function import call_function
+from dotenv import load_dotenv
 
-from functions.get_files_info import schema_get_files_info
-from functions.get_file_content import schema_get_file_content
-from functions.run_python_file import schema_run_python_file
-from functions.write_file_content import schema_write_file
+from prompts import system_prompt
+from functions.call_function import call_function, available_functions
 
-verbose = True
 
-# sys.argv
-# The list of command line arguments passed to a Python script. 
-# argv[0] is the script name (it is operating system dependent whether this is a full pathname or not). 
-# If the command was executed using the -c command line option to the interpreter, argv[0] is set to the string '-c'. 
-# If no script name was passed to the Python interpreter, argv[0] is the empty string.
-# To loop over the standard input, or the list of files given on the command line, see the fileinput module.
-# See also sys.orig_argv.
-# Note On Unix, command line arguments are passed by bytes from OS. Python decodes them with filesystem encoding and 
-# “surrogateescape” error handler. When you need original bytes, you can get it by [os.fsencode(arg) for arg in sys.argv].
+def main():
+    load_dotenv()
 
-if len(sys.argv) > 2:
-    if sys.argv[2] == "--verbose":
-        verbose = True
+    verbose = "--verbose" in sys.argv
+    args = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
 
-if len(sys.argv) < 2:
-    print("Error: prompt is required.")
-    sys.exit(1)
-else:
-    user_prompt = sys.argv[1]
+    if not args:
+        print("AI Code Assistant")
+        print('\nUsage: python main.py "your prompt here" [--verbose]')
+        print('Example: python main.py "How do I fix the calculator?"')
+        sys.exit(1)
 
-messages = [
-    types.Content(role="user", parts=[types.Part(text=user_prompt)]),
-]
+    api_key = os.environ.get("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
 
-load_dotenv()
-api_key = os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+    user_prompt = " ".join(args)
 
-system_prompt = """
-You are a helpful AI coding agent.
+    if verbose:
+        print(f"User prompt: {user_prompt}\n")
 
-When a user asks a question or makes a request, make a function call plan. You can perform the following operations:
-
-- List files and directories
-- Read file contents
-- Execute Python files with optional arguments
-- Write or overwrite files
-
-All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
-"""
-
-model_name = 'gemini-2.0-flash-001'
-
-available_functions = types.Tool(
-    function_declarations=[
-        schema_get_files_info,
-        schema_get_file_content,
-        schema_run_python_file,
-        schema_write_file,
+    messages = [
+        types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
-)
 
-response = client.models.generate_content(
-    model=model_name,  
-    contents=messages,
-    config=types.GenerateContentConfig(
-        tools=[available_functions], system_instruction=system_prompt
+    generate_content(client, messages, verbose)
+
+
+def generate_content(client, messages, verbose):
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions], system_instruction=system_prompt
+        ),
     )
-)
+    if verbose:
+        print("Prompt tokens:", response.usage_metadata.prompt_token_count)
+        print("Response tokens:", response.usage_metadata.candidates_token_count)
 
-if verbose: 
-    print(f"User prompt: {user_prompt}")    
-    print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-    print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-    
-if response.function_calls is None:
-    print(f'{response.text}')
-else:
+    if not response.function_calls:
+        return response.text
+
+    function_responses = []
     for function_call_part in response.function_calls:
         function_call_result = call_function(function_call_part, verbose)
-        result = function_call_result.parts[0].function_response.response
-        if result is None:
-            raise ValueError("Error: function call result is None")
-        print(f"-> {result}")  # Always print the result, not just in verbose mode
+        if (
+            not function_call_result.parts
+            or not function_call_result.parts[0].function_response
+        ):
+            raise Exception("empty function call result")
+        if verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")
+        function_responses.append(function_call_result.parts[0])
 
-        
+    if not function_responses:
+        raise Exception("no function responses generated, exiting.")
+
+
+if __name__ == "__main__":
+    main()
