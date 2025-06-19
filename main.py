@@ -32,8 +32,11 @@ def main():
         types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
 
-    generate_content(client, messages, verbose)
-
+    ii = 20
+    MoreFunctionCalls = True
+    while ii > 0 and MoreFunctionCalls:
+        MoreFunctionCalls, Response = generate_content(client, messages, verbose)
+        ii -= 1
 
 def generate_content(client, messages, verbose):
     response = client.models.generate_content(
@@ -43,27 +46,34 @@ def generate_content(client, messages, verbose):
             tools=[available_functions], system_instruction=system_prompt
         ),
     )
+
     if verbose:
         print("Prompt tokens:", response.usage_metadata.prompt_token_count)
         print("Response tokens:", response.usage_metadata.candidates_token_count)
 
     if not response.function_calls:
-        return response.text
+        return response.text,False
+    else: 
+        for candicate in response.candidates[0]:
+            messages.append(candicate.content)
+    
+        function_responses = []
+        for function_call_part in response.function_calls:
+            function_call_result = call_function(function_call_part, verbose)
+            if (
+                not function_call_result.parts
+                or not function_call_result.parts[0].function_response
+            ):
+                raise Exception("empty function call result")
+            if verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
+            function_responses.append(function_call_result.parts[0])
+            messages.append(types.Content(role="tool", parts=[types.Part(text={function_call_result.parts[0]})]))
 
-    function_responses = []
-    for function_call_part in response.function_calls:
-        function_call_result = call_function(function_call_part, verbose)
-        if (
-            not function_call_result.parts
-            or not function_call_result.parts[0].function_response
-        ):
-            raise Exception("empty function call result")
-        if verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
-        function_responses.append(function_call_result.parts[0])
-
-    if not function_responses:
-        raise Exception("no function responses generated, exiting.")
+        if not function_responses:
+            raise Exception("no function responses generated, exiting.")
+        
+        return True, function_responses
 
 
 if __name__ == "__main__":
