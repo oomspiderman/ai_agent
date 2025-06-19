@@ -32,11 +32,14 @@ def main():
         types.Content(role="user", parts=[types.Part(text=user_prompt)]),
     ]
 
-    ii = 20
+    ii = 19
     MoreFunctionCalls = True
     while ii > 0 and MoreFunctionCalls:
         MoreFunctionCalls, Response = generate_content(client, messages, verbose)
         ii -= 1
+
+    print(f'Final response:\n{Response}')
+
 
 def generate_content(client, messages, verbose):
     response = client.models.generate_content(
@@ -52,9 +55,10 @@ def generate_content(client, messages, verbose):
         print("Response tokens:", response.usage_metadata.candidates_token_count)
 
     if not response.function_calls:
-        return response.text,False
+        messages.append(types.Content(role="model", parts=[types.Part(text=response.text)]))
+        return False, response.text
     else: 
-        for candicate in response.candidates[0]:
+        for candicate in response.candidates:
             messages.append(candicate.content)
     
         function_responses = []
@@ -68,12 +72,14 @@ def generate_content(client, messages, verbose):
             if verbose:
                 print(f"-> {function_call_result.parts[0].function_response.response}")
             function_responses.append(function_call_result.parts[0])
-            messages.append(types.Content(role="tool", parts=[types.Part(text={function_call_result.parts[0]})]))
+
 
         if not function_responses:
             raise Exception("no function responses generated, exiting.")
-        
-        return True, function_responses
+
+        messages.append(types.Content(role="tool", parts=function_responses))
+
+        return True, None
 
 
 if __name__ == "__main__":
